@@ -10,4 +10,6 @@ typedef struct {
     uint8_t promote_to; /* type of piece */
 } move_t;
 
+int move_equals(move_t a, move_t b);
+
 #endif /* MOVE_H */

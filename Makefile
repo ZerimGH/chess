@@ -1,6 +1,6 @@
 .POSIX:
 
-SRC = src/piece.c src/square.c src/board.c src/chess.c
+SRC = src/piece.c src/square.c src/board.c src/chess.c src/move.c
 OBJ = $(SRC:.c=.o)
 
 CFLAGS = -Wall -Wextra -pedantic -Iinclude -O3
@@ -16,7 +16,7 @@ clean:
 	make -C demos/raylib clean 
 
 .PHONY: run
-run:
+run: all
 	make -C demos/raylib run
 
 .c.o:

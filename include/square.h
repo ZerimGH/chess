@@ -9,5 +9,6 @@ typedef struct {
 } square_t;
 
 uint8_t square_to_idx(square_t square);
+int square_equals(square_t a, square_t b);
 
 #endif /* SQUARE_H */

@@ -7,11 +7,12 @@
 
 #define WINDOW_SIZE_HD 900
 
-#define SQUARE_LIGHT      ((Color){.r = 0xBF, .g = 0xC2, .b = 0xBD, .a = 0xFF})
-#define SQUARE_DARK       ((Color){.r = 0x43, .g = 0x57, .b = 0x47, .a = 0xFF})
+#define SQUARE_LIGHT ((Color){.r = 0xBF, .g = 0xC2, .b = 0xBD, .a = 0xFF})
+#define SQUARE_DARK ((Color){.r = 0x43, .g = 0x57, .b = 0x47, .a = 0xFF})
 
-#define DRAG_HIGHLIGHT    ((Color){.r = 0x87, .g = 0x91, .b = 0x87, .a = 0x90})
-#define PICKUP_HIGHLIGHT  ((Color){.r = 0xAA, .g = 0x90, .b = 0x6E, .a = 0xA0})
+#define DRAG_HIGHLIGHT ((Color){.r = 0x87, .g = 0x91, .b = 0x87, .a = 0x90})
+#define PICKUP_HIGHLIGHT ((Color){.r = 0xAA, .g = 0x90, .b = 0x6E, .a = 0xA0})
+#define MOVE_HIGHLIGHT ((Color){.r = 0xA1, .g = 0x43, .b = 0x5E, .a = 0x80})
 
 static Texture piece_textures[12] = {{0}};
 static chess_t chess;
@@ -116,6 +117,21 @@ static void draw_highlights(void) {
                                            - (int)((7 - hovered.row) * ppy))};
 
             DrawRectangleLinesEx(rect, ppx / 20.0f, DRAG_HIGHLIGHT);
+        }
+    }
+
+    /* Highlight legal moves of selected piece */
+    if (selection.col != 0xFF) {
+        square_t hovered = get_hovered_square();
+        for (size_t i = 0; i < chess.moves_len; i++) {
+            move_t move = chess.moves[i];
+            if (square_equals(move.from, selection)) {
+                DrawRectangle((int)(move.to.col * ppx),
+                        (int)((7 - move.to.row) * ppy),
+                        (int)((move.to.col + 1) * ppx) - (int)(move.to.col * ppx),
+                        (int)((8 - move.to.row) * ppy) - (int)((7 - move.to.row) * ppy),
+                        MOVE_HIGHLIGHT);
+            }
         }
     }
 
