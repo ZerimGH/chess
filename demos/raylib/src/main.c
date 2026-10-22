@@ -122,7 +122,6 @@ static void draw_highlights(void) {
 
     /* Highlight legal moves of selected piece */
     if (selection.col != 0xFF) {
-        square_t hovered = get_hovered_square();
         for (size_t i = 0; i < chess.moves_len; i++) {
             move_t move = chess.moves[i];
             if (square_equals(move.from, selection)) {
