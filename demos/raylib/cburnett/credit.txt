@@ -1,0 +1,1 @@
+These files are taken from lichess (https://github.com/lichess-org/lila) at public/piece/cburnett
