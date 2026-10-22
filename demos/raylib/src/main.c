@@ -126,10 +126,11 @@ static void draw_highlights(void) {
             move_t move = chess.moves[i];
             if (square_equals(move.from, selection)) {
                 DrawRectangle((int)(move.to.col * ppx),
-                        (int)((7 - move.to.row) * ppy),
-                        (int)((move.to.col + 1) * ppx) - (int)(move.to.col * ppx),
-                        (int)((8 - move.to.row) * ppy) - (int)((7 - move.to.row) * ppy),
-                        MOVE_HIGHLIGHT);
+                    (int)((7 - move.to.row) * ppy),
+                    (int)((move.to.col + 1) * ppx) - (int)(move.to.col * ppx),
+                    (int)((8 - move.to.row) * ppy)
+                        - (int)((7 - move.to.row) * ppy),
+                    MOVE_HIGHLIGHT);
             }
         }
     }
