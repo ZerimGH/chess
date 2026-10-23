@@ -322,7 +322,7 @@ static void append_move(chess_t *chess, move_t move) {
 
     /* Check if move results in check, don't append if it does */
     chess_t copy = chess_copy_cheap(chess);
-    if (chess_make_pseudo_move(&copy, move)) return;
+    if (chess_make_move_unchecked(&copy, move)) return;
     if (chess_is_check(&copy)) return;
 
     chess->moves[chess->moves_len++] = move;
@@ -549,7 +549,7 @@ static void chess_generate_moves(chess_t *chess) {
     }
 }
 
-int chess_make_pseudo_move(chess_t *chess, move_t move) {
+int chess_make_move_unchecked(chess_t *chess, move_t move) {
     if (!chess) return 1;
     if (!square_is_valid(move.from) || !square_is_valid(move.to)) return 1;
 
@@ -655,7 +655,7 @@ int chess_make_move(chess_t *chess, move_t move) {
     }
     if (!found) return 1;
 
-    if (chess_make_pseudo_move(chess, move)) return 1;
+    if (chess_make_move_unchecked(chess, move)) return 1;
 
     chess->color_to_move = !chess->color_to_move;
 
