@@ -8,7 +8,7 @@
 
 uint64_t perft(chess_t *chess, int depth) {
     if (!chess) return 0;
-    if (depth == 0) return 1;
+    if (depth == 1) return chess->moves_len;
 
     uint64_t tot = 0;
 
@@ -29,7 +29,9 @@ int main(int argc, char **argv) {
         depth = atoi(argv[1]);
         if (depth < 1) depth = DEFAULT_DEPTH;
     }
-    chess_t chess = chess_new();
-    printf("perft(%d) = %lu\n", depth, perft(&chess, depth));
+    for (int i = 1; i <= depth; i++) {
+        chess_t chess = chess_new();
+        printf("perft(%d) = %lu\n", i, perft(&chess, i));
+    }
     return 0;
 }
