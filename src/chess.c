@@ -587,7 +587,7 @@ int chess_make_pseudo_move(chess_t *chess, move_t move) {
     /* Special handling for castling */
     if (piece_is_type(piece_moved, PIECE_TYPE_KING)) {
         int dx      = (int)move.to.col - (int)move.from.col;
-        uint8_t row = chess->color_to_move ? 0 : 7;
+        uint8_t row = PIECE_COLOR(piece_moved) ? 0 : 7;
         if (ABS(dx) > 1) {
             int sign = dx > 0;
             if (sign) {
@@ -597,7 +597,7 @@ int chess_make_pseudo_move(chess_t *chess, move_t move) {
                     PIECE(PIECE_COLOR_WHITE, PIECE_TYPE_NONE));
                 board_set_square(&chess->board,
                     (square_t){5, row},
-                    PIECE(chess->color_to_move, PIECE_TYPE_ROOK));
+                    PIECE(PIECE_COLOR(piece_moved), PIECE_TYPE_ROOK));
             } else {
                 /* Queenside */
                 board_set_square(&chess->board,
@@ -605,14 +605,14 @@ int chess_make_pseudo_move(chess_t *chess, move_t move) {
                     PIECE(PIECE_COLOR_WHITE, PIECE_TYPE_NONE));
                 board_set_square(&chess->board,
                     (square_t){3, row},
-                    PIECE(chess->color_to_move, PIECE_TYPE_ROOK));
+                    PIECE(PIECE_COLOR(piece_moved), PIECE_TYPE_ROOK));
             }
         }
     }
 
     /* Special handling for moves that will remove castling rights */
     /* Just checking move from / to for rooks should be enough */
-    if (chess->color_to_move) {
+    if (PIECE_COLOR(piece_moved)) {
         /* King moves */
         if (piece_is_type(piece_moved, PIECE_TYPE_KING)) {
             chess->wcq = 0;
