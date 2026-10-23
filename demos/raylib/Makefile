@@ -18,7 +18,7 @@ LIBCHESS = ../../libchess.a
 all: $(TARGET) $(TEXTURE_TARGETS)
 
 run: all
-	./$(TARGET)
+	$(TARGET)
 
 clean:
 	rm -f $(OBJ) $(TARGET) $(TEXTURE_TARGETS)

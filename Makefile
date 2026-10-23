@@ -7,6 +7,8 @@ CFLAGS = -Wall -Wextra -pedantic -Iinclude -O3
 AR = ar
 ARFLAGS = rcs
 
+PERFT_DEPTH ?= 4 
+
 .PHONY: all
 all: libchess.a
 
@@ -14,10 +16,15 @@ all: libchess.a
 clean:
 	rm -f $(OBJ) libchess.a
 	make -C demos/raylib clean 
+	make -C demos/perft clean 
 
 .PHONY: run
 run: all
 	make -C demos/raylib run
+
+.PHONY: perft
+perft: all
+	time make -C demos/perft run PERFT_DEPTH=$(PERFT_DEPTH)
 
 .c.o:
 	$(CC) $(CFLAGS) -c $< -o $@
