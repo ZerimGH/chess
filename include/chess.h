@@ -22,6 +22,6 @@ typedef struct {
 chess_t chess_new(void);
 int chess_load_fen(chess_t *chess, const char *fen);
 int chess_make_move(chess_t *chess, move_t move);
-int chess_make_pseudo_move(chess_t *chess, move_t move);
+int chess_make_move_unchecked(chess_t *chess, move_t move);
 
 #endif /* CHESS_H */
