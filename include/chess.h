@@ -22,5 +22,6 @@ typedef struct {
 chess_t chess_new(void);
 int chess_load_fen(chess_t *chess, const char *fen);
 int chess_make_move(chess_t *chess, move_t move);
+uint64_t chess_perft(const chess_t *chess, int depth);
 
 #endif /* CHESS_H */

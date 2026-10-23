@@ -19,6 +19,15 @@ piece_t board_piece_at(board_t *board, square_t square) {
     return board->pieces[idx];
 }
 
+void board_set_square(board_t *board, square_t square, piece_t piece) {
+    if (!board) return;
+
+    uint8_t idx = square_to_idx(square);
+    if (idx == 0xFF) return;
+
+    board->pieces[idx] = piece;
+}
+
 int board_make_move(board_t *board, move_t move) {
     if (!board) return 1;
 
