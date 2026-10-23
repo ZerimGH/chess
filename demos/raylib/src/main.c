@@ -10,7 +10,7 @@
 #define SQUARE_LIGHT ((Color){.r = 0xBF, .g = 0xC2, .b = 0xBD, .a = 0xFF})
 #define SQUARE_DARK ((Color){.r = 0x43, .g = 0x57, .b = 0x47, .a = 0xFF})
 
-#define DRAG_HIGHLIGHT ((Color){.r = 0x87, .g = 0x91, .b = 0x87, .a = 0x90})
+#define DRAG_HIGHLIGHT ((Color){.r = 0xE8, .g = 0xFF, .b = 0xEF, .a = 0x62})
 #define PICKUP_HIGHLIGHT ((Color){.r = 0xAA, .g = 0x90, .b = 0x6E, .a = 0xA0})
 #define MOVE_HIGHLIGHT ((Color){.r = 0xA1, .g = 0x43, .b = 0x5E, .a = 0x80})
 
@@ -105,21 +105,6 @@ static void draw_highlights(void) {
             PICKUP_HIGHLIGHT);
     }
 
-    /* Outline hovered square while dragging */
-    if (selection.col != 0xFF) {
-        square_t hovered = get_hovered_square();
-        if (hovered.col != 0xFF) {
-            Rectangle rect = {.x = (float)((int)(hovered.col * ppx)),
-                .y               = (float)((int)((7 - hovered.row) * ppy)),
-                .width           = (float)((int)((hovered.col + 1) * ppx)
-                                           - (int)(hovered.col * ppx)),
-                .height          = (float)((int)((8 - hovered.row) * ppy)
-                                           - (int)((7 - hovered.row) * ppy))};
-
-            DrawRectangleLinesEx(rect, ppx / 20.0f, DRAG_HIGHLIGHT);
-        }
-    }
-
     /* Highlight legal moves of selected piece */
     if (selection.col != 0xFF) {
         for (size_t i = 0; i < chess.moves_len; i++) {
@@ -132,6 +117,21 @@ static void draw_highlights(void) {
                         - (int)((7 - move.to.row) * ppy),
                     MOVE_HIGHLIGHT);
             }
+        }
+    }
+
+    /* Outline hovered square while dragging */
+    if (selection.col != 0xFF) {
+        square_t hovered = get_hovered_square();
+        if (hovered.col != 0xFF) {
+            Rectangle rect = {.x = (float)((int)(hovered.col * ppx)),
+                .y               = (float)((int)((7 - hovered.row) * ppy)),
+                .width           = (float)((int)((hovered.col + 1) * ppx)
+                        - (int)(hovered.col * ppx)),
+                .height          = (float)((int)((8 - hovered.row) * ppy)
+                        - (int)((7 - hovered.row) * ppy))};
+
+            DrawRectangleLinesEx(rect, ppx / 20.0f, DRAG_HIGHLIGHT);
         }
     }
 
