@@ -7,7 +7,7 @@ CFLAGS = -Wall -Wextra -pedantic -Iinclude -O3
 AR = ar
 ARFLAGS = rcs
 
-PERFT_DEPTH ?= 4 
+PERFT_DEPTH ?= 5 
 
 .PHONY: all
 all: libchess.a
