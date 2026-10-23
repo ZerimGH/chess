@@ -6,10 +6,10 @@
 #include <stdlib.h>
 #include <string.h>
 
+#define ABS(a) (a < 0 ? -a : a)
 #define INIT_FEN "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
 
-static void chess_generate_moves(chess_t *chess, int pseudo);
-static int chess_make_pseudo_move(chess_t *chess, move_t move);
+static void chess_generate_moves(chess_t *chess);
 
 chess_t chess_new(void) {
     chess_t chess;
@@ -25,7 +25,6 @@ int chess_load_fen(chess_t *chess, const char *fen) {
     if (!chess || !fen) return 1;
 
     board_t new_board = board_empty();
-    ;
     if (board_load_fen(&new_board, fen)) return 1;
 
     const char *space = strchr(fen, ' ');
@@ -128,7 +127,7 @@ int chess_load_fen(chess_t *chess, const char *fen) {
     chess->halfmove_clock  = halfmove_clock;
     chess->fullmove_number = fullmove_number;
 
-    chess_generate_moves(chess, 0);
+    chess_generate_moves(chess);
 
     return 0;
 }
@@ -168,61 +167,168 @@ static square_t chess_find_king(chess_t *chess) {
     return king_pos;
 }
 
-static int square_attacked(chess_t *chess, square_t square) {
-    if (!chess) return 0;
-    chess_t copy;
-    memcpy(&copy, chess, sizeof(chess_t));
+static int pawn_attacks(
+    chess_t *chess, square_t square, square_t attacker) {
+    int d      = chess->color_to_move ? -1 : 1;
+    square_t l = (square_t){attacker.col - 1, attacker.row + d};
+    square_t r = (square_t){attacker.col + 1, attacker.row + d};
+    return (square_is_valid(l) && square_equals(l, square))
+           || (square_is_valid(r) && square_equals(r, square));
+}
 
-    chess_generate_moves(&copy, 1);
-    for (size_t i = 0; i < copy.moves_len; i++) {
-        move_t move = copy.moves[i];
-        if (square_equals(square, move.to)) return 1;
+static int knight_attacks(chess_t *chess, square_t square, square_t attacker) {
+    (void)chess;
+
+    int a1 = 1;
+    int b1 = 2;
+    int a2 = 2;
+    int b2 = 1;
+
+    for (int i = 0; i < 4; i++) {
+        square_t new1 = (square_t){attacker.col + a1, attacker.row + b1};
+        square_t new2 = (square_t){attacker.col + a2, attacker.row + b2};
+
+        if (square_is_valid(new1) && square_equals(new1, square)) return 1;
+        if (square_is_valid(new2) && square_equals(new2, square)) return 1;
+
+        int oa1 = a1;
+        a1      = -b1;
+        b1      = oa1;
+
+        int oa2 = a2;
+        a2      = -b2;
+        b2      = oa2;
     }
 
     return 0;
 }
 
-static int square_attacked_by(chess_t *chess, square_t square, int col) {
+static int slide_attacks(
+    chess_t *chess, square_t square, square_t attacker, int a, int b) {
+    for (int i = 0; i < 4; i++) {
+        square_t new = attacker;
+        do {
+            new.col += a;
+            new.row += b;
+            if (square_is_valid(new)) {
+                if (!square_is_empty(chess, new)) {
+                    if (square_equals(new, square)) return 1;
+                    break;
+                }
+
+                if (square_equals(new, square)) return 1;
+            }
+        } while (square_is_valid(new));
+
+        int oa = a;
+        a      = -b;
+        b      = oa;
+    }
+
+    return 0;
+}
+
+static int sliding_piece_attacks(chess_t *chess, square_t square,
+    square_t attacker, int straight, int diagonal) {
+    if (straight && slide_attacks(chess, square, attacker, 1, 0)) return 1;
+    if (diagonal && slide_attacks(chess, square, attacker, 1, 1)) return 1;
+
+    return 0;
+}
+
+static int king_attacks(chess_t *chess, square_t square, square_t attacker) {
+    (void)chess;
+    int dx = (int)square.col - (int)attacker.col;
+    int dy = (int)square.row - (int)attacker.row;
+
+    if (dx == 0 && dy == 0) return 0;
+
+    return ABS(dx) < 2 && ABS(dy) < 2;
+}
+
+static int square_attacked(chess_t *chess, square_t square) {
     if (!chess) return 0;
-    int old              = chess->color_to_move;
-    chess->color_to_move = col;
-    int attacked         = square_attacked(chess, square);
-    chess->color_to_move = old;
-    return attacked;
+
+    square_t attacker = (square_t){0x00, 0x00};
+    for (attacker.col = 0; attacker.col < 8; attacker.col++) {
+        for (attacker.row = 0; attacker.row < 8; attacker.row++) {
+            piece_t piece = board_piece_at(&chess->board, attacker);
+            if (piece_is_type(piece, PIECE_TYPE_NONE)) continue;
+            if (piece_is_color(piece, chess->color_to_move)) continue;
+            if (square_equals(attacker, square)) continue;
+
+            switch (PIECE_TYPE(piece)) {
+            case PIECE_TYPE_PAWN:
+                if (pawn_attacks(chess, square, attacker)) return 1;
+                break;
+            case PIECE_TYPE_KNIGHT:
+                if (knight_attacks(chess, square, attacker)) return 1;
+                break;
+            case PIECE_TYPE_BISHOP:
+                if (sliding_piece_attacks(chess, square, attacker, 0, 1))
+                    return 1;
+                break;
+            case PIECE_TYPE_ROOK:
+                if (sliding_piece_attacks(chess, square, attacker, 1, 0))
+                    return 1;
+                break;
+            case PIECE_TYPE_QUEEN:
+                if (sliding_piece_attacks(chess, square, attacker, 1, 1))
+                    return 1;
+                break;
+            case PIECE_TYPE_KING:
+                if (king_attacks(chess, square, attacker)) return 1;
+                break;
+            }
+        }
+    }
+
+    return 0;
 }
 
 static int chess_is_check(chess_t *chess) {
     if (!chess) return 0;
     square_t king_pos = chess_find_king(chess);
     if (!square_is_valid(king_pos)) return 0;
-    return square_attacked_by(chess, king_pos, !chess->color_to_move);
+    return square_attacked(chess, king_pos);
 }
 
-static int chess_is_check_col(chess_t *chess, int col) {
-    if (!chess) return 0;
-    int old              = chess->color_to_move;
-    chess->color_to_move = col;
-    int check            = chess_is_check(chess);
-    chess->color_to_move = old;
-    return check;
+static chess_t chess_copy_cheap(chess_t *chess) {
+    chess_t copy;
+    copy.board           = chess->board;
+    copy.color_to_move   = chess->color_to_move;
+    copy.wcq             = chess->wcq;
+    copy.wck             = chess->wck;
+    copy.bcq             = chess->bcq;
+    copy.bck             = chess->bck;
+    copy.en_passant      = chess->en_passant;
+    copy.halfmove_clock  = chess->halfmove_clock;
+    copy.fullmove_number = chess->fullmove_number;
+    copy.moves_len       = 0;
+    return copy;
 }
 
-static void append_move(chess_t *chess, move_t move, int pseudo) {
+/*
+static chess_t chess_copy_deep(chess_t *chess) {
+    chess_t copy;
+    memcpy(&copy, chess, sizeof(chess_t));
+    return copy;
+}
+*/
+
+static void append_move(chess_t *chess, move_t move) {
     if (!chess) return;
     if (chess->moves_len >= CHESS_MAX_MOVES) return;
 
-    if (!pseudo) {
-        /* Check if move results in check, don't append if it does */
-        chess_t copy;
-        memcpy(&copy, chess, sizeof(chess_t));
-        if (chess_make_pseudo_move(&copy, move)) return;
-        if (chess_is_check_col(&copy, !copy.color_to_move)) return;
-    }
+    /* Check if move results in check, don't append if it does */
+    chess_t copy = chess_copy_cheap(chess);
+    if (chess_make_pseudo_move(&copy, move)) return;
+    if (chess_is_check(&copy)) return;
 
     chess->moves[chess->moves_len++] = move;
 }
 
-static void generate_pawn_moves(chess_t *chess, square_t square, int pseudo) {
+static void generate_pawn_moves(chess_t *chess, square_t square) {
     if (!chess) return;
     int d           = chess->color_to_move ? 1 : -1;
     int start_row   = chess->color_to_move ? 1 : 6;
@@ -241,22 +347,18 @@ static void generate_pawn_moves(chess_t *chess, square_t square, int pseudo) {
         if (square_is_empty(chess, f1)) {
             /* Forward 1 */
             if (f1.row == promote_row) {
-                append_move(
-                    chess, (move_t){square, f1, PIECE_TYPE_KNIGHT}, pseudo);
-                append_move(
-                    chess, (move_t){square, f1, PIECE_TYPE_BISHOP}, pseudo);
-                append_move(chess, (move_t){square, f1, PIECE_TYPE_ROOK}, pseudo);
-                append_move(
-                    chess, (move_t){square, f1, PIECE_TYPE_QUEEN}, pseudo);
+                append_move(chess, (move_t){square, f1, PIECE_TYPE_KNIGHT});
+                append_move(chess, (move_t){square, f1, PIECE_TYPE_BISHOP});
+                append_move(chess, (move_t){square, f1, PIECE_TYPE_ROOK});
+                append_move(chess, (move_t){square, f1, PIECE_TYPE_QUEEN});
             } else {
-                append_move(chess, (move_t){square, f1, PIECE_TYPE_NONE}, pseudo);
+                append_move(chess, (move_t){square, f1, PIECE_TYPE_NONE});
             }
 
             /* Forward 2 */
             if (square.row == start_row && square_is_valid(f2)) {
                 if (square_is_empty(chess, f2)) {
-                    append_move(
-                        chess, (move_t){square, f2, PIECE_TYPE_NONE}, pseudo);
+                    append_move(chess, (move_t){square, f2, PIECE_TYPE_NONE});
                 }
             }
         }
@@ -268,14 +370,12 @@ static void generate_pawn_moves(chess_t *chess, square_t square, int pseudo) {
                 && square_is_color(chess, l, !chess->color_to_move))
             || square_equals(l, chess->en_passant)) {
             if (l.row == promote_row) {
-                append_move(
-                    chess, (move_t){square, l, PIECE_TYPE_KNIGHT}, pseudo);
-                append_move(
-                    chess, (move_t){square, l, PIECE_TYPE_BISHOP}, pseudo);
-                append_move(chess, (move_t){square, l, PIECE_TYPE_ROOK}, pseudo);
-                append_move(chess, (move_t){square, l, PIECE_TYPE_QUEEN}, pseudo);
+                append_move(chess, (move_t){square, l, PIECE_TYPE_KNIGHT});
+                append_move(chess, (move_t){square, l, PIECE_TYPE_BISHOP});
+                append_move(chess, (move_t){square, l, PIECE_TYPE_ROOK});
+                append_move(chess, (move_t){square, l, PIECE_TYPE_QUEEN});
             } else {
-                append_move(chess, (move_t){square, l, PIECE_TYPE_NONE}, pseudo);
+                append_move(chess, (move_t){square, l, PIECE_TYPE_NONE});
             }
         }
     }
@@ -285,20 +385,18 @@ static void generate_pawn_moves(chess_t *chess, square_t square, int pseudo) {
                 && square_is_color(chess, r, !chess->color_to_move))
             || square_equals(r, chess->en_passant)) {
             if (r.row == promote_row) {
-                append_move(
-                    chess, (move_t){square, r, PIECE_TYPE_KNIGHT}, pseudo);
-                append_move(
-                    chess, (move_t){square, r, PIECE_TYPE_BISHOP}, pseudo);
-                append_move(chess, (move_t){square, r, PIECE_TYPE_ROOK}, pseudo);
-                append_move(chess, (move_t){square, r, PIECE_TYPE_QUEEN}, pseudo);
+                append_move(chess, (move_t){square, r, PIECE_TYPE_KNIGHT});
+                append_move(chess, (move_t){square, r, PIECE_TYPE_BISHOP});
+                append_move(chess, (move_t){square, r, PIECE_TYPE_ROOK});
+                append_move(chess, (move_t){square, r, PIECE_TYPE_QUEEN});
             } else {
-                append_move(chess, (move_t){square, r, PIECE_TYPE_NONE}, pseudo);
+                append_move(chess, (move_t){square, r, PIECE_TYPE_NONE});
             }
         }
     }
 }
 
-static void slide(chess_t *chess, square_t square, int a, int b, int pseudo) {
+static void slide(chess_t *chess, square_t square, int a, int b) {
     for (int i = 0; i < 4; i++) {
         square_t new = square;
         do {
@@ -307,15 +405,13 @@ static void slide(chess_t *chess, square_t square, int a, int b, int pseudo) {
             if (square_is_valid(new)) {
                 if (!square_is_empty(chess, new)) {
                     if (square_is_color(chess, new, !chess->color_to_move)) {
-                        append_move(chess,
-                            (move_t){square, new, PIECE_TYPE_NONE},
-                            pseudo);
+                        append_move(
+                            chess, (move_t){square, new, PIECE_TYPE_NONE});
                     }
                     break;
                 }
 
-                append_move(
-                    chess, (move_t){square, new, PIECE_TYPE_NONE}, pseudo);
+                append_move(chess, (move_t){square, new, PIECE_TYPE_NONE});
             }
         } while (square_is_valid(new));
 
@@ -326,14 +422,14 @@ static void slide(chess_t *chess, square_t square, int a, int b, int pseudo) {
 }
 
 static void generate_sliding_moves(
-    chess_t *chess, square_t square, int straight, int diagonal, int pseudo) {
+    chess_t *chess, square_t square, int straight, int diagonal) {
     if (!chess) return;
 
-    if (straight) slide(chess, square, 1, 0, pseudo);
-    if (diagonal) slide(chess, square, 1, 1, pseudo);
+    if (straight) slide(chess, square, 1, 0);
+    if (diagonal) slide(chess, square, 1, 1);
 }
 
-static void generate_knight_moves(chess_t *chess, square_t square, int pseudo) {
+static void generate_knight_moves(chess_t *chess, square_t square) {
     if (!chess) return;
     int a1 = 1;
     int b1 = 2;
@@ -347,16 +443,14 @@ static void generate_knight_moves(chess_t *chess, square_t square, int pseudo) {
         if (square_is_valid(new1)) {
             if (square_is_empty(chess, new1)
                 || square_is_color(chess, new1, !chess->color_to_move)) {
-                append_move(
-                    chess, (move_t){square, new1, PIECE_TYPE_NONE}, pseudo);
+                append_move(chess, (move_t){square, new1, PIECE_TYPE_NONE});
             }
         }
 
         if (square_is_valid(new2)) {
             if (square_is_empty(chess, new2)
                 || square_is_color(chess, new2, !chess->color_to_move)) {
-                append_move(
-                    chess, (move_t){square, new2, PIECE_TYPE_NONE}, pseudo);
+                append_move(chess, (move_t){square, new2, PIECE_TYPE_NONE});
             }
         }
 
@@ -370,7 +464,7 @@ static void generate_knight_moves(chess_t *chess, square_t square, int pseudo) {
     }
 }
 
-static void generate_king_moves(chess_t *chess, square_t square, int pseudo) {
+static void generate_king_moves(chess_t *chess, square_t square) {
     if (!chess) return;
 
     /* Regular moves */
@@ -382,12 +476,11 @@ static void generate_king_moves(chess_t *chess, square_t square, int pseudo) {
             if (!(square_is_empty(chess, new)
                     || square_is_color(chess, new, !chess->color_to_move)))
                 continue;
-            append_move(chess, (move_t){square, new, PIECE_TYPE_NONE}, pseudo);
+            append_move(chess, (move_t){square, new, PIECE_TYPE_NONE});
         }
     }
 
     /* Castle */
-    if (pseudo) return; /* Causes recursion otherwise, TODO: Handle this better */
     if (chess_is_check(chess)) return; /* Can't castle when in check */
 
     uint8_t row = chess->color_to_move ? 0 : 7;
@@ -399,7 +492,7 @@ static void generate_king_moves(chess_t *chess, square_t square, int pseudo) {
     if (ck) {
         for (; ck_square.col < 7; ck_square.col++) {
             if (!square_is_empty(chess, ck_square)
-                || square_attacked_by(chess, ck_square, !chess->color_to_move)) {
+                || square_attacked(chess, ck_square)) {
                 ck = 0;
                 break;
             }
@@ -413,7 +506,7 @@ static void generate_king_moves(chess_t *chess, square_t square, int pseudo) {
     if (cq) {
         for (; cq_square.col > 1; cq_square.col--) {
             if (!square_is_empty(chess, cq_square)
-                || square_attacked_by(chess, cq_square, !chess->color_to_move)) {
+                || square_attacked(chess, cq_square)) {
                 cq = 0;
                 break;
             }
@@ -422,13 +515,11 @@ static void generate_king_moves(chess_t *chess, square_t square, int pseudo) {
         cq_square.col++;
     }
 
-    if (ck)
-        append_move(chess, (move_t){square, ck_square, PIECE_TYPE_NONE}, pseudo);
-    if (cq)
-        append_move(chess, (move_t){square, cq_square, PIECE_TYPE_NONE}, pseudo);
+    if (ck) append_move(chess, (move_t){square, ck_square, PIECE_TYPE_NONE});
+    if (cq) append_move(chess, (move_t){square, cq_square, PIECE_TYPE_NONE});
 }
 
-static void chess_generate_moves(chess_t *chess, int pseudo) {
+static void chess_generate_moves(chess_t *chess) {
     if (!chess) return;
 
     chess->moves_len = 0;
@@ -441,32 +532,24 @@ static void chess_generate_moves(chess_t *chess, int pseudo) {
             if (PIECE_COLOR(piece) != chess->color_to_move) continue;
 
             switch (PIECE_TYPE(piece)) {
-            case PIECE_TYPE_PAWN:
-                generate_pawn_moves(chess, square, pseudo);
-                break;
-            case PIECE_TYPE_KNIGHT:
-                generate_knight_moves(chess, square, pseudo);
-                break;
+            case PIECE_TYPE_PAWN:   generate_pawn_moves(chess, square); break;
+            case PIECE_TYPE_KNIGHT: generate_knight_moves(chess, square); break;
             case PIECE_TYPE_BISHOP:
-                generate_sliding_moves(chess, square, 0, 1, pseudo);
+                generate_sliding_moves(chess, square, 0, 1);
                 break;
             case PIECE_TYPE_ROOK:
-                generate_sliding_moves(chess, square, 1, 0, pseudo);
+                generate_sliding_moves(chess, square, 1, 0);
                 break;
             case PIECE_TYPE_QUEEN:
-                generate_sliding_moves(chess, square, 1, 1, pseudo);
+                generate_sliding_moves(chess, square, 1, 1);
                 break;
-            case PIECE_TYPE_KING:
-                generate_king_moves(chess, square, pseudo);
-                break;
+            case PIECE_TYPE_KING: generate_king_moves(chess, square); break;
             }
         }
     }
 }
 
-#define ABS(a) (a < 0 ? -a : a)
-
-static int chess_make_pseudo_move(chess_t *chess, move_t move) {
+int chess_make_pseudo_move(chess_t *chess, move_t move) {
     if (!chess) return 1;
     if (!square_is_valid(move.from) || !square_is_valid(move.to)) return 1;
 
@@ -555,8 +638,6 @@ static int chess_make_pseudo_move(chess_t *chess, move_t move) {
         if (move.to.row == 0 && move.from.col == 7) chess->wck = 0;
     }
 
-    chess->color_to_move = !chess->color_to_move;
-
     return 0;
 }
 
@@ -576,6 +657,9 @@ int chess_make_move(chess_t *chess, move_t move) {
 
     if (chess_make_pseudo_move(chess, move)) return 1;
 
-    chess_generate_moves(chess, 0);
+    chess->color_to_move = !chess->color_to_move;
+
+    chess_generate_moves(chess);
+
     return 0;
 }
