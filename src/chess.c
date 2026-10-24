@@ -167,8 +167,7 @@ static square_t chess_find_king(chess_t *chess) {
     return king_pos;
 }
 
-static int pawn_attacks(
-    chess_t *chess, square_t square, square_t attacker) {
+static int pawn_attacks(chess_t *chess, square_t square, square_t attacker) {
     int d      = chess->color_to_move ? -1 : 1;
     square_t l = (square_t){attacker.col - 1, attacker.row + d};
     square_t r = (square_t){attacker.col + 1, attacker.row + d};
@@ -510,6 +509,9 @@ static void generate_king_moves(chess_t *chess, square_t square) {
                 cq = 0;
                 break;
             }
+
+            /* b1 / b7 must be empty, but they can be attacked */
+            if (!square_is_empty(chess, (square_t){1, row})) cq = 0;
         }
 
         cq_square.col++;
@@ -580,6 +582,13 @@ int chess_make_move_unchecked(chess_t *chess, move_t move) {
                     captured,
                     PIECE(PIECE_COLOR_WHITE, PIECE_TYPE_NONE));
         }
+
+        /* Handle promotion */
+        int promotion_row = PIECE_COLOR(piece_moved) ? 7 : 0;
+        if (move.to.row == promotion_row)
+            board_set_square(&chess->board,
+                move.to,
+                PIECE(PIECE_COLOR(piece_moved), move.promote_to));
     }
 
     chess->en_passant = new_en_passant;
@@ -622,8 +631,8 @@ int chess_make_move_unchecked(chess_t *chess, move_t move) {
         /* Rook moves / captures */
         if (move.from.row == 0 && move.from.col == 0) chess->wcq = 0;
         if (move.from.row == 0 && move.from.col == 7) chess->wck = 0;
-        if (move.to.row == 7 && move.from.col == 0) chess->bcq = 0;
-        if (move.to.row == 7 && move.from.col == 7) chess->bck = 0;
+        if (move.to.row == 7 && move.to.col == 0) chess->bcq = 0;
+        if (move.to.row == 7 && move.to.col == 7) chess->bck = 0;
     } else {
         /* King moves */
         if (piece_is_type(piece_moved, PIECE_TYPE_KING)) {
@@ -634,8 +643,8 @@ int chess_make_move_unchecked(chess_t *chess, move_t move) {
         /* Rook moves / captures */
         if (move.from.row == 7 && move.from.col == 0) chess->bcq = 0;
         if (move.from.row == 7 && move.from.col == 7) chess->bck = 0;
-        if (move.to.row == 0 && move.from.col == 0) chess->wcq = 0;
-        if (move.to.row == 0 && move.from.col == 7) chess->wck = 0;
+        if (move.to.row == 0 && move.to.col == 0) chess->wcq = 0;
+        if (move.to.row == 0 && move.to.col == 7) chess->wck = 0;
     }
 
     return 0;
