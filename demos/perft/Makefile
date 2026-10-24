@@ -2,7 +2,7 @@ TARGET = ./main
 SRC = src/main.c
 OBJ = $(SRC:.c=.o)
 
-CFLAGS = -Wall -Wextra -pedantic -std=c99 -I../../include
+CFLAGS = -Wall -Wextra -pedantic -std=c23 -I../../include
 LDFLAGS = -L../..
 LDLIBS = -lchess
 
