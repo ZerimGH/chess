@@ -127,9 +127,9 @@ static void draw_highlights(void) {
             Rectangle rect = {.x = (float)((int)(hovered.col * ppx)),
                 .y               = (float)((int)((7 - hovered.row) * ppy)),
                 .width           = (float)((int)((hovered.col + 1) * ppx)
-                        - (int)(hovered.col * ppx)),
+                                           - (int)(hovered.col * ppx)),
                 .height          = (float)((int)((8 - hovered.row) * ppy)
-                        - (int)((7 - hovered.row) * ppy))};
+                                           - (int)((7 - hovered.row) * ppy))};
 
             DrawRectangleLinesEx(rect, ppx / 20.0f, DRAG_HIGHLIGHT);
         }
