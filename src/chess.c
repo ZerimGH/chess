@@ -134,8 +134,8 @@ int chess_load_fen(chess_t *chess, const char *fen) {
     piece_t wk        = PIECE(PIECE_COLOR_WHITE, PIECE_TYPE_KING);
     piece_t bk        = PIECE(PIECE_COLOR_BLACK, PIECE_TYPE_KING);
     square_t square   = (square_t){0, 0};
-    for (square.row = 0; square.row < 8; square.row++) {
-        for (square.col = 0; square.col < 8; square.col++) {
+    for (square.col = 0; square.col < 8; square.col++) {
+        for (square.row = 0; square.row < 8; square.row++) {
             uint8_t idx = square_to_idx(square);
             if (idx == 0xFF) continue;
             piece_t piece = board_piece_at(&chess->board, square);

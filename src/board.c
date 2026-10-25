@@ -70,7 +70,7 @@ int board_load_fen(board_t *board, const char *fen) {
         if (type > PIECE_TYPE_KING) return 1;
         if (rank >= 8 || file >= 8) return 1;
 
-        uint8_t idx     = (7 - rank) * 8 + file;
+        uint8_t idx     = (7 - rank) + file * 8;
         new.pieces[idx] = piece;
         file++;
     }
