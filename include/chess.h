@@ -15,6 +15,8 @@ typedef struct {
     square_t en_passant;
     int halfmove_clock;
     int fullmove_number;
+    square_t white_king;
+    square_t black_king;
     move_t moves[CHESS_MAX_MOVES];
     size_t moves_len;
 } chess_t;

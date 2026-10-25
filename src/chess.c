@@ -7,6 +7,7 @@
 #include <string.h>
 
 #define ABS(a) (a < 0 ? -a : a)
+#define SIGN(a) (a == 0 ? 0 : (a > 0 ? 1 : -1))
 #define INIT_FEN "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
 
 static void chess_generate_moves(chess_t *chess);
@@ -127,6 +128,22 @@ int chess_load_fen(chess_t *chess, const char *fen) {
     chess->halfmove_clock  = halfmove_clock;
     chess->fullmove_number = fullmove_number;
 
+    /* Find kings */
+    chess->white_king = (square_t){0xFF, 0xFF};
+    chess->black_king = (square_t){0xFF, 0xFF};
+    piece_t wk        = PIECE(PIECE_COLOR_WHITE, PIECE_TYPE_KING);
+    piece_t bk        = PIECE(PIECE_COLOR_BLACK, PIECE_TYPE_KING);
+    square_t square   = (square_t){0, 0};
+    for (square.row = 0; square.row < 8; square.row++) {
+        for (square.col = 0; square.col < 8; square.col++) {
+            uint8_t idx = square_to_idx(square);
+            if (idx == 0xFF) continue;
+            piece_t piece = board_piece_at(&chess->board, square);
+            if (piece == wk) chess->white_king = square;
+            if (piece == bk) chess->black_king = square;
+        }
+    }
+
     chess_generate_moves(chess);
 
     return 0;
@@ -149,22 +166,8 @@ static int square_is_color(chess_t *chess, square_t square, int col) {
 }
 
 static square_t chess_find_king(chess_t *chess) {
-    int found         = 0;
-    piece_t king      = PIECE(chess->color_to_move, PIECE_TYPE_KING);
-    square_t king_pos = (square_t){0xFF, 0xFF};
-    for (king_pos.col = 0; king_pos.col < 8; king_pos.col++) {
-        for (king_pos.row = 0; king_pos.row < 8; king_pos.row++) {
-            piece_t piece = board_piece_at(&chess->board, king_pos);
-            if (piece == king) {
-                found = 1;
-                break;
-            }
-        }
-        if (found) break;
-    }
-
-    if (!found) return (square_t){0xFF, 0xFF};
-    return king_pos;
+    if (chess->color_to_move) return chess->white_king;
+    else return chess->black_king;
 }
 
 static int pawn_attacks(chess_t *chess, square_t square, square_t attacker) {
@@ -203,34 +206,34 @@ static int knight_attacks(chess_t *chess, square_t square, square_t attacker) {
 }
 
 static int slide_attacks(
-    chess_t *chess, square_t square, square_t attacker, int a, int b) {
-    for (int i = 0; i < 4; i++) {
-        square_t new = attacker;
-        do {
-            new.col += a;
-            new.row += b;
-            if (square_is_valid(new)) {
-                if (!square_is_empty(chess, new)) {
-                    if (square_equals(new, square)) return 1;
-                    break;
-                }
+    chess_t *chess, square_t target, square_t attacker, int dx, int dy) {
+    square_t current = attacker;
 
-                if (square_equals(new, square)) return 1;
-            }
-        } while (square_is_valid(new));
+    while (1) {
+        current.col += dx;
+        current.row += dy;
 
-        int oa = a;
-        a      = -b;
-        b      = oa;
+        if (!square_is_valid(current)) return 0;
+        if (square_equals(current, target)) return 1;
+        if (!square_is_empty(chess, current)) return 0;
     }
-
-    return 0;
 }
 
-static int sliding_piece_attacks(chess_t *chess, square_t square,
+static int sliding_piece_attacks(chess_t *chess, square_t target,
     square_t attacker, int straight, int diagonal) {
-    if (straight && slide_attacks(chess, square, attacker, 1, 0)) return 1;
-    if (diagonal && slide_attacks(chess, square, attacker, 1, 1)) return 1;
+    int dx = (int)target.col - (int)attacker.col;
+    int dy = (int)target.row - (int)attacker.row;
+
+    if (dx == 0 && dy == 0) return 0;
+
+    int is_straight = dx == 0 || dy == 0;
+    int is_diagonal = ABS(dx) == ABS(dy);
+
+    if (is_straight && straight)
+        return slide_attacks(chess, target, attacker, SIGN(dx), SIGN(dy));
+
+    if (is_diagonal && diagonal)
+        return slide_attacks(chess, target, attacker, SIGN(dx), SIGN(dy));
 
     return 0;
 }
@@ -292,35 +295,18 @@ static int chess_is_check(chess_t *chess) {
     return square_attacked(chess, king_pos);
 }
 
-static chess_t chess_copy_cheap(chess_t *chess) {
-    chess_t copy;
-    copy.board           = chess->board;
-    copy.color_to_move   = chess->color_to_move;
-    copy.wcq             = chess->wcq;
-    copy.wck             = chess->wck;
-    copy.bcq             = chess->bcq;
-    copy.bck             = chess->bck;
-    copy.en_passant      = chess->en_passant;
-    copy.halfmove_clock  = chess->halfmove_clock;
-    copy.fullmove_number = chess->fullmove_number;
-    copy.moves_len       = 0;
-    return copy;
-}
-
-/*
-static chess_t chess_copy_deep(chess_t *chess) {
+static chess_t chess_copy(chess_t *chess) {
     chess_t copy;
     memcpy(&copy, chess, sizeof(chess_t));
     return copy;
 }
-*/
 
 static void append_move(chess_t *chess, move_t move) {
     if (!chess) return;
     if (chess->moves_len >= CHESS_MAX_MOVES) return;
 
     /* Check if move results in check, don't append if it does */
-    chess_t copy = chess_copy_cheap(chess);
+    chess_t copy = chess_copy(chess);
     if (chess_make_move_unchecked(&copy, move)) return;
     if (chess_is_check(&copy)) return;
 
@@ -555,10 +541,24 @@ int chess_make_move_unchecked(chess_t *chess, move_t move) {
     if (!chess) return 1;
     if (!square_is_valid(move.from) || !square_is_valid(move.to)) return 1;
 
-    piece_t piece_moved = board_piece_at(&chess->board, move.from);
+    piece_t piece_moved    = board_piece_at(&chess->board, move.from);
+    piece_t piece_captured = board_piece_at(&chess->board, move.to);
     if (piece_is_type(piece_moved, PIECE_TYPE_NONE)) return 1;
 
     if (board_make_move(&chess->board, move)) return 1;
+
+    /* Update king positions */
+    if (piece_is_type(piece_moved, PIECE_TYPE_KING)) {
+        if (PIECE_COLOR(piece_moved)) chess->white_king = move.to;
+        else chess->black_king = move.to;
+    }
+
+    /* King should never be captured, but still good to check */
+    if (piece_is_type(piece_captured, PIECE_TYPE_KING)) {
+        if (PIECE_COLOR(piece_captured))
+            chess->white_king = (square_t){0xFF, 0xFF};
+        else chess->black_king = (square_t){0xFF, 0xFF};
+    }
 
     square_t new_en_passant = (square_t){0xFF, 0xFF};
 
@@ -568,8 +568,8 @@ int chess_make_move_unchecked(chess_t *chess, move_t move) {
         int dy = (int)move.to.row - (int)move.from.row;
         int dx = (int)move.to.col - (int)move.from.col;
         if (ABS(dy) == 2) {
-            int sign       = dy > 0 ? 1 : -1;
-            new_en_passant = (square_t){move.from.col, move.from.row + sign};
+            int dir        = dy > 0 ? 1 : -1;
+            new_en_passant = (square_t){move.from.col, move.from.row + dir};
         }
 
         /* Remove piece below for en passant */
@@ -598,8 +598,8 @@ int chess_make_move_unchecked(chess_t *chess, move_t move) {
         int dx      = (int)move.to.col - (int)move.from.col;
         uint8_t row = PIECE_COLOR(piece_moved) ? 0 : 7;
         if (ABS(dx) > 1) {
-            int sign = dx > 0;
-            if (sign) {
+            int kingside = dx > 0;
+            if (kingside) {
                 /* Kingside */
                 board_set_square(&chess->board,
                     (square_t){7, row},
