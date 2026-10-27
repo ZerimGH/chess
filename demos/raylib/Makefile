@@ -13,13 +13,14 @@ LDLIBS = -lchess -lraylib
 
 LIBCHESS = ../../libchess.a
 
-.PHONY: all run clean
-
+.PHONY: all
 all: $(TARGET) $(TEXTURE_TARGETS)
 
+.PHONY: run
 run: all
 	$(TARGET)
 
+.PHONY: clean
 clean:
 	rm -f $(OBJ) $(TARGET) $(TEXTURE_TARGETS)
 
